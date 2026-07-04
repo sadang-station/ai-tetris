@@ -1,0 +1,131 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Semantic version to release"
+        required: true
+
+permissions:
+  contents: write
+
+env:
+  PROJECT_PATH: src/AiTetris/AiTetris.csproj
+  APP_NAME: AiTetris
+
+jobs:
+  release:
+    name: Publish GitHub Release
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Resolve version
+        id: version
+        shell: bash
+        run: |
+          if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
+            version="${GITHUB_REF_NAME#v}"
+          else
+            version="${{ github.event.inputs.version }}"
+          fi
+
+          if [[ ! "${version}" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Version must be semantic version format, for example 5.2.3." >&2
+            exit 1
+          fi
+
+          echo "version=${version}" >> "${GITHUB_OUTPUT}"
+          echo "tag=v${version}" >> "${GITHUB_OUTPUT}"
+
+      - name: Restore
+        run: dotnet restore
+
+      - name: Test
+        run: dotnet test --no-restore --configuration Release
+
+      - name: Publish release assets
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          version="${{ steps.version.outputs.version }}"
+          mkdir -p dist
+
+          publish() {
+            local rid="$1"
+            local archive_ext="$2"
+            local publish_dir="artifacts/publish/${rid}"
+            local asset_name="${APP_NAME}-${version}-${rid}"
+
+            dotnet publish "${PROJECT_PATH}" \
+              --configuration Release \
+              --runtime "${rid}" \
+              --self-contained true \
+              -p:PublishSingleFile=true \
+              -p:PublishTrimmed=false \
+              -p:DebugType=none \
+              -p:DebugSymbols=false \
+              -p:Version="${version}" \
+              --output "${publish_dir}"
+
+            if [[ "${archive_ext}" == "zip" ]]; then
+              (cd "${publish_dir}" && zip -qr "../../../dist/${asset_name}.zip" .)
+            else
+              tar -czf "dist/${asset_name}.tar.gz" -C "${publish_dir}" .
+            fi
+          }
+
+          publish "win-x64" "zip"
+          publish "linux-x64" "tar.gz"
+          publish "osx-x64" "tar.gz"
+          publish "osx-arm64" "tar.gz"
+
+          (cd dist && sha256sum * > SHA256SUMS.txt)
+
+      - name: Create release notes
+        shell: bash
+        run: |
+          version="${{ steps.version.outputs.version }}"
+
+          cat > RELEASE_NOTES.md <<EOF
+          ## C#으로 AI 테트리스를 만들어 보자꾸나
+
+          Version ${version}
+
+          ### Downloads
+
+          - Windows x64: AiTetris-${version}-win-x64.zip
+          - Linux x64: AiTetris-${version}-linux-x64.tar.gz
+          - macOS Intel: AiTetris-${version}-osx-x64.tar.gz
+          - macOS Apple Silicon: AiTetris-${version}-osx-arm64.tar.gz
+
+          Validate downloads with SHA256SUMS.txt.
+          EOF
+
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          tag="${{ steps.version.outputs.tag }}"
+          title="C#으로 AI 테트리스를 만들어 보자꾸나 ${{ steps.version.outputs.version }}"
+
+          if gh release view "${tag}" >/dev/null 2>&1; then
+            gh release upload "${tag}" dist/* --clobber
+          else
+            gh release create "${tag}" dist/* \
+              --target "${GITHUB_SHA}" \
+              --title "${title}" \
+              --notes-file RELEASE_NOTES.md
+          fi
