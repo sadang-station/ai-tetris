@@ -94,9 +94,9 @@ public sealed class ConsoleRenderer : IRenderer
         var maxLines = Math.Max(Math.Max(playerBlock.Count, aiBlock.Count), side.Count);
         var builder = new StringBuilder();
 
-        builder.AppendLine("╔" + new string('═', metrics.OuterInnerWidth) + "╗");
-        builder.AppendLine("║ " + CenterVisible("C#으로 AI 테트리스를 만들어 보자꾸나", metrics.OuterInnerWidth - 2) + " ║");
-        builder.AppendLine("╠" + new string('═', metrics.OuterInnerWidth) + "╣");
+        AppendFrameLine(builder, "╔" + new string('═', metrics.OuterInnerWidth) + "╗");
+        AppendFrameLine(builder, "║ " + CenterVisible("C#으로 AI 테트리스를 만들어 보자꾸나", metrics.OuterInnerWidth - 2) + " ║");
+        AppendFrameLine(builder, "╠" + new string('═', metrics.OuterInnerWidth) + "╣");
 
         for (var i = 0; i < maxLines; i++)
         {
@@ -107,7 +107,7 @@ public sealed class ConsoleRenderer : IRenderer
             builder.Append(PadVisible(left, metrics.BoardColumnWidth));
             builder.Append(PadVisible(middle, metrics.BoardColumnWidth));
             builder.Append(PadVisible(right, metrics.SidePanelWidth));
-            builder.AppendLine("║");
+            AppendFrameLine(builder, "║");
         }
 
         builder.Append("╚" + new string('═', metrics.OuterInnerWidth) + "╝");
@@ -149,13 +149,19 @@ public sealed class ConsoleRenderer : IRenderer
     {
         var builder = new StringBuilder();
         const int width = 48;
-        builder.AppendLine(BorderWithTitle("터미널 크기", width, '╭', '╮', '─'));
-        builder.AppendLine(BoxLine("화면이 너무 작습니다.", width));
-        builder.AppendLine(BoxLine($"현재 {terminalWidth}×{terminalHeight}", width));
-        builder.AppendLine(BoxLine($"필요 {MinWidth}×{MinHeight}", width));
-        builder.AppendLine(BoxLine("창 크기를 키우면 게임이 계속됩니다.", width));
+        AppendFrameLine(builder, BorderWithTitle("터미널 크기", width, '╭', '╮', '─'));
+        AppendFrameLine(builder, BoxLine("화면이 너무 작습니다.", width));
+        AppendFrameLine(builder, BoxLine($"현재 {terminalWidth}×{terminalHeight}", width));
+        AppendFrameLine(builder, BoxLine($"필요 {MinWidth}×{MinHeight}", width));
+        AppendFrameLine(builder, BoxLine("창 크기를 키우면 게임이 계속됩니다.", width));
         builder.Append("╰" + new string('─', width - 2) + "╯");
         return builder.ToString();
+    }
+
+    private static void AppendFrameLine(StringBuilder builder, string value)
+    {
+        builder.Append(value);
+        builder.Append('\n');
     }
 
     private static List<string> BuildBoardBlock(

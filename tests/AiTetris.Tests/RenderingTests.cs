@@ -99,6 +99,7 @@ public sealed class RenderingTests
             .ToArray();
 
         Assert.Single(widths);
+        Assert.DoesNotContain('\r', frame);
         Assert.False(frame.EndsWith('\n'));
         Assert.True(frame.Split('\n', StringSplitOptions.RemoveEmptyEntries).Length <= ConsoleRenderer.MinHeight);
     }
